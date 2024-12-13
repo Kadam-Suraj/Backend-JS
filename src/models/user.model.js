@@ -43,7 +43,6 @@ const userSchema = new Schema(
         },
         refreshToken: {
             type: String,
-            required: true
         }
 
     }, { timestamps: true });
@@ -76,7 +75,6 @@ userSchema.methods.generateAccessToken = function () {
         }
     )
 }
-
 // Generate Refresh Token
 userSchema.methods.generateRefreshToken = function () {
     return jwt.sign(
