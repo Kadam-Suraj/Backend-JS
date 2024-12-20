@@ -19,8 +19,6 @@ const generateAccessAndRefreshToken = async (user) => {
         user.refreshToken = refreshToken;
         await user.save({ validateBeforeSave: false })
 
-        console.log(accessToken)
-
         return { accessToken, refreshToken }
 
     } catch (error) {
@@ -65,8 +63,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // check if cover image is provided
     let coverImageLocalPath;
-    if (res.files && Array.isArray(res.files.coverImage) && res.files.coverImage.length() > 0) {
-        coverImageLocalPath = res.files.coverImage[0].path
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length() > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath);

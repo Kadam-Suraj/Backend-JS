@@ -15,6 +15,10 @@ const commentSchema = new Schema(
         owner: {
             type: Schema.Types.ObjectId,
             ref: "User"
+        },
+        isEdited: {
+            type: Boolean,
+            default: false
         }
     }
     , { timestamps: true });
