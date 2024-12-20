@@ -4,20 +4,26 @@ The Video Tube Backend is a powerful and scalable server-side application design
 
 ## Features:
 1. User Management
-  • Authentication and authorization (JWT-based).
+
+    • Authentication and authorization (JWT-based).
 
 2. Video Management
-  • Upload and store videos.
+  
+    • Upload and store videos.
 
 3. Content Delivery
-  • Efficient APIs for video streaming.
+  
+    • Efficient APIs for video streaming.
 
 4. Interactive Features
-  • Like, comment, and tweet functionality.
-  • View, Like, Subscriber count tracking and analytics.
+  
+    • Like, comment, and tweet functionality.
+  
+    • View, Like, Subscriber count tracking and analytics.
 
 5. Admin(Owner) Dashboard
-  • Insights into user engagement  and server health.
+  
+    • Insights into user engagement  and server health.
 
 ## Tech Stack:
   • Backend Framework: Express.js
