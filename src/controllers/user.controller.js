@@ -102,28 +102,37 @@ const loginUser = asyncHandler(async (req, res) => {
     // save refresh token in db and in user browser: cookie
     // login the user
 
-    const { username, email, password } = req.body
+    const { username, password } = req.body
 
-    if (!(username || email)) {
-        throw new apiError(400, "username or email is required");
+    if (!(username)) {
+        return res.status(400)
+            .json(
+                new apiResponse(400, {}, "username or email is required")
+            )
     }
 
     // find the user in DB
     const user = await User.findOne(
         {
-            $or: [{ username }, { email }]
+            $or: [{ username: username }, { email: username }]
         }
     ).select("-avatar -coverImage -fullName -watchHistory -createdAt -updatedAt")
 
     // check if user is available
     if (!user) {
-        throw new apiError(400, "user with this username or email not exist");
+        return res.status(400)
+            .json(
+                new apiResponse(400, {}, "user with this username does not exist")
+            )
     }
 
     // check the password
     const isPasswordValid = await user.isPasswordCorrect(password.toString());
     if (!isPasswordValid) {
-        throw new apiError(400, "incorrect password");
+        return res.status(400)
+            .json(
+                new apiResponse(400, {}, "incorrect password")
+            )
     }
 
     const { refreshToken, accessToken } = await generateAccessAndRefreshToken(user);
@@ -209,13 +218,19 @@ const changePassword = asyncHandler(async (req, res) => {
     // res
 
     if (!req.user) {
-        throw new apiError(401, "authorization required");
+        return res.status(401)
+            .json(new apiResponse(
+                401, {}, "Unauthorized request"
+            ))
     }
 
     const { oldPassword, newPassword, confirmPassword } = req.body;
 
     if (newPassword !== confirmPassword) {
-        throw new apiError(401, "new password and confirm password not matching")
+        return res.status(400)
+            .json(new apiResponse(
+                400, {}, "New password and confirm password not matching"
+            ))
     }
 
     const user = await User.findById(req.user?._id);
@@ -223,7 +238,10 @@ const changePassword = asyncHandler(async (req, res) => {
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
     if (!isPasswordCorrect) {
-        throw new apiError(400, "incorrect old password");
+        return res.status(400)
+            .json(new apiResponse(
+                400, {}, "Incorrect old password"
+            ))
     }
 
     user.password = newPassword;
@@ -231,7 +249,7 @@ const changePassword = asyncHandler(async (req, res) => {
 
     res.status(200)
         .json(new apiResponse(
-            200, {}, "Password changed Successfully"
+            200, {}, "Password updated Successfully"
         ))
 });
 
@@ -241,9 +259,9 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const updateUserProfile = asyncHandler(async (req, res) => {
-    const { fullName, email } = req.body;
+    const { fullName, email, description } = req.body;
 
-    if (!(fullName || email)) {
+    if (!(fullName || email || description)) {
         throw new apiError(401, "Provide at least one field");
     }
 
@@ -252,13 +270,14 @@ const updateUserProfile = asyncHandler(async (req, res) => {
         throw new apiError(401, "Unauthorized request");
     }
 
-    // check if old and new values are same if same throw error
+    // check if old and new values are not same throw error
     // if ((fullName && email) && (user.fullName === fullName && user.email === email)) {
     //     throw new apiError(401, "Provided credentials are same as old");
     // }
 
-    user.fullName = fullName;
-    user.email = email;
+    if (fullName) user.fullName = fullName;
+    if (email) user.email = email;
+    if (description) user.description = description;
 
     await user.save({ validateBeforeSave: false });
 

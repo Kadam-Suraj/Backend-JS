@@ -21,7 +21,13 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
     const isLiked = await Like.aggregate([
         {
             $match: {
-                video: new mongoose.Types.ObjectId(videoId)
+                video: new mongoose.Types.ObjectId(videoId),
+                likedBy: userId
+            }
+        },
+        {
+            $addFields: {
+                isLiked: { $eq: ["$likedBy", userId] }
             }
         }
     ]);

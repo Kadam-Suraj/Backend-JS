@@ -6,6 +6,94 @@ import { apiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
+const getPublicAllVideos = asyncHandler(async (req, res) => {
+    //TODO: get all videos based on query, sort, pagination
+    const {
+        page = 1,
+        limit = 10,
+        query = "",
+        sortBy = "createdAt",
+        sortType = "desc",
+    } = req.query
+
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        sort: { [sortBy]: sortType === "desc" ? -1 : 1 }
+    }
+
+    const pipeline = [
+        {
+            $match: {
+                isPublished: true,
+                title: { $regex: query, $options: "i" }
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            fullName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        }, {
+            $lookup: {
+                from: "likes",
+                localField: "likes",
+                foreignField: "_id",
+                as: "likes",
+            }
+        },
+        {
+            $unwind: "$owner" // NOTE: extracts owner array into object (flattens owner array),
+        },
+        {
+            $project: {
+                title: 1,
+                description: 1,
+                duration: 1,
+                createdAt: 1,
+                thumbnail: 1,
+                _id: 1,
+                likes: 1,
+                views: 1,
+                videoFile: 1,
+                "owner.fullName": 1,
+                "owner.avatar": 1
+            }
+        }
+    ]
+
+    const videos = await Video.aggregatePaginate(pipeline, options);
+
+    if (!videos) {
+        return res
+            .status(200)
+            .json(
+                new apiResponse(
+                    404, {}, "Failed to get videos"
+                )
+            );
+    }
+
+    res
+        .status(200)
+        .json(
+            new apiResponse(
+                200,
+                videos,
+                "Videos fetched successfully"
+            )
+        );
+});
 
 const getAllVideos = asyncHandler(async (req, res) => {
     //TODO: get all videos based on query, sort, pagination
@@ -142,7 +230,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
     //TODO: get video by id
-    const { videoId } = req.paramsm;
+    const { videoId } = req.params;
 
     if (!videoId) {
         throw new apiError(401, "Invalid Video ID");
@@ -151,18 +239,94 @@ const getVideoById = asyncHandler(async (req, res) => {
     const video = await Video.aggregate([
         {
             $match: {
-                _id: new mongoose.Types.ObjectId(videoId)
-            }
+                _id: new mongoose.Types.ObjectId(videoId),
+            },
         },
         {
             $lookup: {
                 from: "likes",
                 localField: "likes",
                 foreignField: "_id",
-                as: "likes"
-            }
-        }
+                as: "likes",
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "subscriptions",
+                            localField: "_id",
+                            foreignField: "channel",
+                            as: "subscriptions",
+                        },
+                    },
+                    {
+                        $addFields: {
+                            totalSubscribers: { $size: "$subscriptions" },
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "subscriptions",
+                            localField: "_id",
+                            foreignField: "channel",
+                            as: "isSubscribed",
+                        },
+                    },
+                    {
+                        $addFields: {
+                            isSubscribed: {
+                                $cond: [
+                                    { $in: [new mongoose.Types.ObjectId(req.user?._id), "$isSubscribed.subscriber"] },
+                                    true,
+                                    false,
+                                ],
+                            },
+                        },
+                    },
+                    {
+                        $project: {
+                            fullName: 1,
+                            avatar: 1,
+                            totalSubscribers: 1,
+                            _id: 1,
+                            username: 1,
+                            isSubscribed: 1
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes",
+            },
+        },
+        {
+            $addFields: {
+                totalLikes: { $size: "$likes" },
+                isLiked: {
+                    $cond: [
+                        { $in: [new mongoose.Types.ObjectId(req.user?._id), "$likes.likedBy"] },
+                        true,
+                        false,
+                    ],
+                },
+            },
+        },
+        {
+            $unwind: "$owner",
+        },
     ]);
+
 
     if (!video.length > 0) {
         throw new apiError(400, "video not found");
@@ -172,7 +336,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         .status(200)
         .json(
             new apiResponse(
-                200, video, "video fetch success"
+                200, video[0], "video fetch success"
             ));
 })
 
@@ -284,6 +448,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 export {
     getAllVideos,
+    getPublicAllVideos,
     publishAVideo,
     getVideoById,
     updateVideo,
