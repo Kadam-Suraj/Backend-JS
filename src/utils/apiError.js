@@ -17,6 +17,15 @@ class apiError extends Error {
         } else {
             Error.captureStackTrace(this, this.constructor);
         };
+
+        this.toJSON = function () {
+            return {
+                success: this.success,
+                message: this.message,
+                errors: this.errors,
+                data: this.data,
+            };
+        };
     };
 };
 
