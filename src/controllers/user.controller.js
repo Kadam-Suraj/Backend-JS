@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js"
 import { User } from "../models/user.model.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -75,11 +75,13 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     const user = await User.create({
-        fullName,
-        avatar: avatar.url,
+        fullName: fullName,
+        avatar: avatar?.url,
+        avatarId: avatar?.public_id,
         coverImage: coverImage?.url || "",
-        email,
-        password,
+        coverImageId: coverImage?.public_id,
+        email: email,
+        password: password,
         username: username.toLowerCase()
     })
 
@@ -294,6 +296,18 @@ const updateAvatar = asyncHandler(async (req, res) => {
         throw new apiError(400, "Avatar file missing");
     }
 
+    const oldAvatarId = await User.findOne({ _id: user._id }, { avatarId: 1 });
+
+    if (!oldAvatarId?.avatarId) {
+        throw new apiError(400, "Old avatar not found on cloudinary");
+    }
+
+    const deletedAvatar = await deleteOnCloudinary(oldAvatarId?.avatarId, "image");
+
+    if (!deletedAvatar) {
+        throw new apiError(400, "Error while deleting old avatar");
+    }
+
     const avatar = await uploadOnCloudinary(avatarLocalPath);
 
     if (!avatar) {
@@ -301,6 +315,7 @@ const updateAvatar = asyncHandler(async (req, res) => {
     }
 
     user.avatar = avatar.url;
+    user.avatarId = avatar.public_id;
     await user.save({ validateBeforeSave: false });
 
     res
@@ -317,6 +332,18 @@ const updateCoverImage = asyncHandler(async (req, res) => {
         throw new apiError(400, "cover image file missing");
     }
 
+    const oldCoverImageId = await User.findOne({ _id: user._id }, { coverImageId: 1 });
+
+    if (!oldCoverImageId?.coverImageId) {
+        throw new apiError(400, "Old cover image not found on cloudinary");
+    }
+
+    const deletedCoverImage = await deleteOnCloudinary(oldCoverImageId?.coverImageId, "image");
+
+    if (!deletedCoverImage) {
+        throw new apiError(400, "Error while deleting old cover image");
+    }
+
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
     if (!coverImage) {
@@ -324,6 +351,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     }
 
     user.coverImage = coverImage.url;
+    user.coverImageId = coverImage.public_id;
     await user.save({ validateBeforeSave: false });
 
     res
@@ -386,7 +414,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
                 subscriptionsCount: 1,
                 isSubscribed: 1,
                 avatar: 1,
-                coverImage: 1
+                coverImage: 1,
+                createdAt: 1
             }
         }
     ]);

@@ -2,11 +2,13 @@ import { Router } from 'express';
 import {
     deleteVideo,
     getAllVideos,
+    getPanelVideos,
     getPublicAllVideos,
     getVideoById,
     publishAVideo,
     togglePublishStatus,
     updateVideo,
+    updateViews,
 } from "../controllers/video.controller.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
 import { upload } from "../middlewares/multer.middleware.js"
@@ -34,11 +36,16 @@ router
 
 router
     .route("/u/")
-    .get(getAllVideos)
+    .get(getAllVideos);
+
+router
+    .route("/r/:videoId")
+    .get(getPanelVideos); // Panel recommended videos
 
 router
     .route("/:videoId")
     .get(getVideoById)
+    .post(updateViews)
     .delete(deleteVideo)
     .patch(upload.single("thumbnail"), updateVideo);
 

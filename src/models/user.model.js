@@ -31,7 +31,13 @@ const userSchema = new Schema(
         avatar: {
             type: String,
         },
+        avatarId: {
+            type: String
+        },
         coverImage: {
+            type: String
+        },
+        coverImageId: {
             type: String
         },
         watchHistory: [
@@ -46,7 +52,7 @@ const userSchema = new Schema(
         },
         refreshToken: {
             type: String,
-        }
+        },
 
     }, { timestamps: true });
 

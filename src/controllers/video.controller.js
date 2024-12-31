@@ -4,7 +4,7 @@ import { User } from "../models/user.model.js";
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 
 const getPublicAllVideos = asyncHandler(async (req, res) => {
     //TODO: get all videos based on query, sort, pagination
@@ -25,6 +25,102 @@ const getPublicAllVideos = asyncHandler(async (req, res) => {
     const pipeline = [
         {
             $match: {
+                isPublished: true,
+                title: { $regex: query, $options: "i" }
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            fullName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        }, {
+            $lookup: {
+                from: "likes",
+                localField: "likes",
+                foreignField: "_id",
+                as: "likes",
+            }
+        },
+        {
+            $unwind: "$owner" // NOTE: extracts owner array into object (flattens owner array),
+        },
+        {
+            $project: {
+                title: 1,
+                description: 1,
+                duration: 1,
+                createdAt: 1,
+                thumbnail: 1,
+                _id: 1,
+                likes: 1,
+                views: 1,
+                videoFile: 1,
+                "owner.fullName": 1,
+                "owner.avatar": 1
+            }
+        }
+    ]
+
+    const videos = await Video.aggregatePaginate(pipeline, options);
+
+    if (!videos) {
+        return res
+            .status(200)
+            .json(
+                new apiResponse(
+                    404, {}, "Failed to get videos"
+                )
+            );
+    }
+
+    res
+        .status(200)
+        .json(
+            new apiResponse(
+                200,
+                videos,
+                "Videos fetched successfully"
+            )
+        );
+});
+
+const getPanelVideos = asyncHandler(async (req, res) => {
+    //TODO: get all videos based on query, sort, pagination
+    const {
+        page = 1,
+        limit = 10,
+        query = "",
+        sortBy = "createdAt",
+        sortType = "desc",
+    } = req.query;
+
+    const { videoId } = req.params;
+
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        sort: { [sortBy]: sortType === "desc" ? -1 : 1 }
+    }
+
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
+    }
+
+    const pipeline = [
+        {
+            $match: {
+                _id: { $ne: new mongoose.Types.ObjectId(videoId) },
                 isPublished: true,
                 title: { $regex: query, $options: "i" }
             }
@@ -217,7 +313,9 @@ const publishAVideo = asyncHandler(async (req, res) => {
             videoFile: videoUrl?.secure_url,
             thumbnail: thumbnailUrl?.url,
             duration: videoUrl?.duration,
-            owner: req.user?._id
+            owner: req.user?._id,
+            videoFileId: videoUrl?.public_id,
+            thumbnailId: thumbnailUrl?.public_id
         }
     );
 
@@ -340,6 +438,33 @@ const getVideoById = asyncHandler(async (req, res) => {
             ));
 })
 
+const updateViews = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
+    }
+
+    const views = await Video.updateOne(
+        { _id: new mongoose.Types.ObjectId(videoId) },
+        { $inc: { views: 1 } }
+    )
+
+    if (!views) {
+        throw new apiError(400, "Views update failed");
+    }
+
+    res
+        .status(200)
+        .json(
+            new apiResponse(
+                200,
+                views,
+                "Views updated successfully"
+            )
+        )
+});
+
 const updateVideo = asyncHandler(async (req, res) => {
     //TODO: update video details like title, description, thumbnail
 
@@ -349,7 +474,15 @@ const updateVideo = asyncHandler(async (req, res) => {
     const thumbnailLocalPath = req.file?.path;
     let thumbnailUrl;
 
-    if (thumbnailLocalPath) {
+    const oldVIdeoThumbnailId = await Video.findOne({ _id: videoId }, { thumbnail: 1, thumbnailId: 1 });
+
+    if (!oldVIdeoThumbnailId?.thumbnailId) {
+        throw new apiError(400, "Old thumbnail not found on cloudinary");
+    }
+
+    const deletedThumbnail = await deleteOnCloudinary(oldVIdeoThumbnailId?.thumbnailId, "image");
+
+    if (thumbnailLocalPath && deletedThumbnail) {
         thumbnailUrl = await uploadOnCloudinary(thumbnailLocalPath);
     }
 
@@ -367,7 +500,8 @@ const updateVideo = asyncHandler(async (req, res) => {
             $set: {
                 title: title,
                 description: description,
-                thumbnail: thumbnailUrl?.url
+                thumbnail: thumbnailUrl?.url,
+                thumbnailId: thumbnailUrl?.public_id
             }
         },
         {
@@ -400,7 +534,34 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new apiError(400, "Video not found");
     }
 
+    const videoToDelete = await Video.findById(videoId);
+
+    // delete video from cloudinary
+    let deletedVideo;
+    let deletedThumbnail;
+    if (videoToDelete?.thumbnailId && videoToDelete?.videoFileId) {
+        deletedVideo = await deleteOnCloudinary(videoToDelete?.videoFileId, "video");
+
+        if (!deletedVideo) {
+            throw new apiError(400, "Failed to delete video file from servers");
+        }
+        deletedThumbnail = await deleteOnCloudinary(videoToDelete?.thumbnailId, "image");
+
+        if (!deletedThumbnail) {
+            throw new apiError(400, "Failed to delete video thumbnail from servers");
+        }
+    }
+
+    if (!(deletedVideo && deletedThumbnail)) {
+        throw new apiError(400, "Failed to delete video and thumbnail from servers");
+    }
+
+    // delete video from database
     const video = await Video.findByIdAndDelete(videoId);
+
+    if (!video) {
+        throw new apiError(400, "Failed to delete video thumbnail");
+    }
 
     if (!video) {
         throw new apiError(400, "No video found to delete");
@@ -449,8 +610,10 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 export {
     getAllVideos,
     getPublicAllVideos,
+    getPanelVideos,
     publishAVideo,
     getVideoById,
+    updateViews,
     updateVideo,
     deleteVideo,
     togglePublishStatus

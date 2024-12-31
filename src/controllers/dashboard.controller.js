@@ -45,13 +45,13 @@ const getChannelStats = asyncHandler(async (req, res) => {
 
     const data = [
         {
-            views: totalViews,
-        },
-        {
             likes: likes,
         },
         {
             videos: totalVideos,
+        },
+        {
+            views: totalViews,
         },
         {
             subscribers: totalSubscribers

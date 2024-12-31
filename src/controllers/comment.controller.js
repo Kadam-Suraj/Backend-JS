@@ -50,6 +50,26 @@ const getVideoComments = asyncHandler(async (req, res) => {
             }
         },
         {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "comment",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                totalLikes: { $size: "$likes" },
+                isLiked: {
+                    $cond: [
+                        { $in: [new mongoose.Types.ObjectId(req.user?._id), "$likes.likedBy"] },
+                        true,
+                        false,
+                    ],
+                },
+            }
+        },
+        {
             $unwind: "$owner"
         },
         {
@@ -58,7 +78,9 @@ const getVideoComments = asyncHandler(async (req, res) => {
                 updatedAt: 1,
                 createdAt: 1,
                 owner: 1,
-                isEdited: 1
+                isEdited: 1,
+                totalLikes: 1,
+                isLiked: 1
             }
         }
     ];
@@ -182,12 +204,12 @@ const deleteComment = asyncHandler(async (req, res) => {
 
     let deletedComment;
 
+    deletedComment = await Comment.findByIdAndDelete(commentId);
     // check if comment owner and loggedIn user is same
-    if (comment.owner.equals(userId)) {
-        deletedComment = await Comment.findByIdAndDelete(commentId);
-    } else {
-        throw new apiError(400, "You are not the owner of this comment");
-    }
+    // if (comment.owner.equals(userId)) {
+    // } else {
+    //     throw new apiError(400, "You are not the owner of this comment");
+    // }
 
     if (!deletedComment) {
         throw new apiError(500, "Delete comment failed");

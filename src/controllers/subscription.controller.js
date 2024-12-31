@@ -4,6 +4,7 @@ import { Subscription } from "../models/subscription.model.js"
 import { apiError } from "../utils/apiError.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
+import { channel } from "diagnostics_channel"
 
 
 const toggleSubscription = asyncHandler(async (req, res) => {
@@ -151,14 +152,34 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
                 as: "channel",
                 pipeline: [
                     {
+                        $lookup: {
+                            from: "subscriptions",
+                            localField: "_id",
+                            foreignField: "channel",
+                            as: "totalSubscribers"
+                        }
+                    },
+                    {
+                        $addFields: {
+                            totalSubscribers: { $size: "$totalSubscribers" },
+                            isSubscribed: {
+                                $in: [new mongoose.Types.ObjectId(userId), "$totalSubscribers.subscriber"]
+                            }
+                        }
+                    },
+                    {
                         $project: {
                             fullName: 1,
-                            avatar: 1
+                            avatar: 1,
+                            username: 1,
+                            totalSubscribers: 1,
+                            isSubscribed: 1
                         }
                     }
                 ]
             }
-        }, {
+        },
+        {
             $unwind: "$channel"
         }
     ]);

@@ -74,26 +74,33 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
         throw new apiError(400, "Unauthorized request")
     }
 
-    const isLiked = await Like.aggregate([
+    const existingLike = await Like.findOne(
         {
-            $match: {
-                comment: new mongoose.Types.ObjectId(commentId)
-            }
+            comment: commentId,
+            likedBy: req.user?._id
         }
-    ]);
+    );
 
     let like;
+    let message;
 
-    if (isLiked) {
-        like = await Like.findByIdAndDelete(commentId);
+    if (existingLike) {
+        like = await Like.findOneAndDelete({
+            comment: commentId
+        })
+
+        message = "Comment like removed successfully"
     }
-    if (!isLiked[0]) {
+
+    if (!existingLike) {
         like = await Like.create(
             {
                 comment: commentId,
                 likedBy: req.user?._id
             }
         );
+
+        message = "Comment like submitted successfully"
     }
 
     if (!like) {
@@ -106,7 +113,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
             new apiResponse(
                 200,
                 like,
-                !isLiked[0] ? "Comment liked successfully" : "Comment liked removed successfully"
+                message
             ));
 })
 

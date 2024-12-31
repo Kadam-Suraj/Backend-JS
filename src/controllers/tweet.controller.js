@@ -66,14 +66,58 @@ const getUserTweets = asyncHandler(async (req, res) => {
                     {
                         $project: {
                             fullName: 1,
-                            avatar: 1
+                            avatar: 1,
+                            username: 1
                         }
                     }
                 ]
             }
         },
         {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "tweet",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                isLiked: {
+                    $cond: [
+                        { $in: [new mongoose.Types.ObjectId(userId), "$likes.likedBy"] },
+                        true,
+                        false,
+                    ],
+                }
+            }
+        },
+        {
+            $addFields: {
+                totalLikes: { $size: "$likes" }
+            }
+        },
+
+        // {
+        //     $unwind: "$likes"
+        // },
+        {
             $unwind: "$owner"
+        },
+        {
+            $project: {
+                _id: 1,
+                content: 1,
+                isLiked: 1,
+                totalLikes: 1,
+                createdAt: 1,
+                owner: {
+                    _id: 1,
+                    fullName: 1,
+                    avatar: 1,
+                    username: 1
+                }
+            }
         }
     ]);
 

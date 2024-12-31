@@ -19,7 +19,13 @@ const commentSchema = new Schema(
         isEdited: {
             type: Boolean,
             default: false
-        }
+        },
+        likedBy: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "User"
+            }
+        ]
     }
     , { timestamps: true });
 
