@@ -334,15 +334,15 @@ const updateCoverImage = asyncHandler(async (req, res) => {
 
     const oldCoverImageId = await User.findOne({ _id: user._id }, { coverImageId: 1 });
 
-    if (!oldCoverImageId?.coverImageId) {
-        throw new apiError(400, "Old cover image not found on cloudinary");
-    }
+    // if (!oldCoverImageId?.coverImageId) {
+    //     throw new apiError(400, "Old cover image not found on cloudinary");
+    // }
 
     const deletedCoverImage = await deleteOnCloudinary(oldCoverImageId?.coverImageId, "image");
 
-    if (!deletedCoverImage) {
-        throw new apiError(400, "Error while deleting old cover image");
-    }
+    // if (!deletedCoverImage) {
+    //     throw new apiError(400, "Error while deleting old cover image");
+    // }
 
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
