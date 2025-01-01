@@ -9,6 +9,8 @@ app.use(cors({
     credentials: true,
 }));
 
+console.log("CORS_ORIGIN:", process.env.CORS_ORIGIN);
+
 app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
