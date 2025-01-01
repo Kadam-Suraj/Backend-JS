@@ -9,6 +9,10 @@ app.use(cors({
     credentials: true,
 }));
 
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", process.env.CORS_ORIGIN);
+    next();
+});
 console.log("CORS_ORIGIN:", process.env.CORS_ORIGIN);
 
 app.use(express.json({ limit: "16kb" }));
