@@ -6,6 +6,7 @@ import {
     getPublicAllVideos,
     getVideoById,
     publishAVideo,
+    search,
     togglePublishStatus,
     updateVideo,
     updateViews,
@@ -41,6 +42,10 @@ router
 router
     .route("/r/:videoId")
     .get(getPanelVideos); // Panel recommended videos
+
+router
+    .route("/search")
+    .get(search);
 
 router
     .route("/:videoId")

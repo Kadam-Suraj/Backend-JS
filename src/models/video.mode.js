@@ -19,6 +19,7 @@ const videoSchema = Schema(
         title: {
             type: String,
             required: true,
+            index: true,
             min: [2, "Title must have at least 2 characters"]
         },
         description: {

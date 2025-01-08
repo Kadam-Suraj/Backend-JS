@@ -5,6 +5,7 @@ import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
+import { Playlist } from "../models/playlist.model.js";
 
 const getPublicAllVideos = asyncHandler(async (req, res) => {
     //TODO: get all videos based on query, sort, pagination
@@ -607,6 +608,110 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
         );
 });
 
+const search = asyncHandler(async (req, res) => {
+    const { query } = req.query;
+
+    if (!query) {
+        throw new apiError(400, "Query required");
+    }
+
+    const userResults = await User.aggregate([
+        {
+            $match: {
+                $or: [
+                    { title: { $regex: query, $options: "i" } }, // Case-insensitive search
+                    { fullName: { $regex: query, $options: "i" } },
+                    { username: { $regex: query, $options: "i" } }
+                ]
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "totalSubscribers",
+            }
+        },
+        {
+            $addFields: {
+                totalSubscribers: { $size: "$totalSubscribers" },
+                isSubscribed: {
+                    $in: [new mongoose.Types.ObjectId(req.user?._id), "$totalSubscribers.subscriber"]
+                }
+            }
+        },
+        {
+            $project: {
+                _id: 1,
+                avatar: 1,
+                fullName: 1,
+                username: 1,
+                description: 1,
+                totalSubscribers: 1,
+                isSubscribed: 1,
+            }
+        }
+    ]);
+
+    const videoResults = await Video.aggregate([
+        {
+            $match: {
+                title: { $regex: query, $options: "i" }
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            fullName: 1,
+                            avatar: 1,
+                        }
+                    },
+                ]
+            }
+        },
+        {
+            $unwind: "$owner"
+        },
+        {
+            $project: {
+                _id: 1,
+                title: 1,
+                thumbnail: 1,
+                duration: 1,
+                views: 1,
+                owner: 1,
+                createdAt: 1,
+            }
+        }
+    ]);
+
+    const results = {
+        users: userResults,
+        videos: videoResults
+    };
+
+    if (!results) {
+        throw new apiError(400, "No videos, channels or playlists found");
+    }
+
+    res
+        .status(200)
+        .json(
+            new apiResponse(
+                200,
+                results,
+                "Videos fetched successfully"
+            )
+        );
+})
+
 export {
     getAllVideos,
     getPublicAllVideos,
@@ -616,5 +721,6 @@ export {
     updateViews,
     updateVideo,
     deleteVideo,
-    togglePublishStatus
+    togglePublishStatus,
+    search
 }

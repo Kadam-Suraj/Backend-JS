@@ -4,7 +4,7 @@ import { User } from "../models/user.model.js"
 import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 
 const options = {
     httpOnly: true,
@@ -430,6 +430,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
 });
 
 const getWatchHistory = asyncHandler(async (req, res) => {
+
     const user = await User.aggregate([
         {
             $match: {
@@ -480,6 +481,16 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         ))
 });
 
+const checkId = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+        throw new apiError(404, "Invalid ID");
+    }
+
+    res.status(200).json(new apiResponse(200, {}, "User Valid"));
+})
+
 export {
     registerUser,
     loginUser,
@@ -491,5 +502,6 @@ export {
     updateAvatar,
     updateCoverImage,
     getUserProfile,
-    getWatchHistory
+    getWatchHistory,
+    checkId
 };
