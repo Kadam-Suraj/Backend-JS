@@ -25,7 +25,7 @@ const healthCheck = asyncHandler(async (req, res) => {
                 status: "Healthy",
                 uptime: formatUptime(process.uptime()),
                 success: true,
-                database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
+                server: mongoose.connection.readyState === 1 ? "Online" : "Offline",
                 timestamp: new Date(),
             });
 })
