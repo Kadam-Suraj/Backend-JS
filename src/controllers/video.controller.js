@@ -311,12 +311,13 @@ const publishAVideo = asyncHandler(async (req, res) => {
         {
             title: title || videoUrl?.original_filename,
             description: description,
-            videoFile: videoUrl?.secure_url,
+            videoFile: videoUrl?.playback_url,
             thumbnail: thumbnailUrl?.url,
             duration: videoUrl?.duration,
             owner: req.user?._id,
             videoFileId: videoUrl?.public_id,
-            thumbnailId: thumbnailUrl?.public_id
+            thumbnailId: thumbnailUrl?.public_id,
+            height: videoUrl?.height
         }
     );
 

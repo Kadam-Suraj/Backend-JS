@@ -10,6 +10,9 @@ const videoSchema = Schema(
         videoFileId: {
             type: String
         },
+        height: {
+            type: Number
+        },
         thumbnail: {
             type: String,
         },
