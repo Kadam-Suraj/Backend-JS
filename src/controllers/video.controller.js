@@ -474,17 +474,17 @@ const updateVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body;
 
     const thumbnailLocalPath = req.file?.path;
+
+    // const oldVIdeoThumbnailId = await Video.findOne({ _id: videoId }, { thumbnail: 1, thumbnailId: 1 });
+
+    // if (!oldVIdeoThumbnailId?.thumbnailId) {
+    //     throw new apiError(400, "Old thumbnail not found on cloud server");
+    // }
+
+    // const deletedThumbnail = await deleteOnCloudinary(oldVIdeoThumbnailId?.thumbnailId, "image");
+
     let thumbnailUrl;
-
-    const oldVIdeoThumbnailId = await Video.findOne({ _id: videoId }, { thumbnail: 1, thumbnailId: 1 });
-
-    if (!oldVIdeoThumbnailId?.thumbnailId) {
-        throw new apiError(400, "Old thumbnail not found on cloudinary");
-    }
-
-    const deletedThumbnail = await deleteOnCloudinary(oldVIdeoThumbnailId?.thumbnailId, "image");
-
-    if (thumbnailLocalPath && deletedThumbnail) {
+    if (thumbnailLocalPath) {
         thumbnailUrl = await uploadOnCloudinary(thumbnailLocalPath);
     }
 
