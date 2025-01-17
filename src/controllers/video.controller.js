@@ -475,6 +475,13 @@ const updateVideo = asyncHandler(async (req, res) => {
 
     const thumbnailLocalPath = req.file?.path;
 
+    if (!videoId) {
+        throw new apiError(401, "Invalid video ID");
+    }
+
+    if (!(title || description)) {
+        throw new apiError(401, "Must provide field to update");
+    }
     // const oldVIdeoThumbnailId = await Video.findOne({ _id: videoId }, { thumbnail: 1, thumbnailId: 1 });
 
     // if (!oldVIdeoThumbnailId?.thumbnailId) {
@@ -486,14 +493,6 @@ const updateVideo = asyncHandler(async (req, res) => {
     let thumbnailUrl;
     if (thumbnailLocalPath) {
         thumbnailUrl = await uploadOnCloudinary(thumbnailLocalPath);
-    }
-
-    if (!(title || description)) {
-        throw new apiError(401, "Must provide field to update");
-    }
-
-    if (!videoId) {
-        throw new apiError(401, "Invalid video ID");
     }
 
     const video = await Video.findOneAndUpdate(

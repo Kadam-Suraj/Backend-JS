@@ -7,8 +7,10 @@ import jwt from "jsonwebtoken";
 import mongoose, { isValidObjectId } from "mongoose";
 
 const options = {
-    httpOnly: true,
-    secure: true
+    httpOnly: true,       // Makes it accessible only to the server
+    secure: true,         // Works only with HTTPS
+    sameSite: 'Strict',   // Helps to prevent CSRF attacks
+    maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
 }
 
 const generateAccessAndRefreshToken = async (user) => {
