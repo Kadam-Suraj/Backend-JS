@@ -13,6 +13,12 @@ const options = {
     maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
 }
 
+const clearOptions = {
+    httpOnly: true,       // Makes it accessible only to the server
+    secure: true,         // Works only with HTTPS
+    sameSite: 'Strict',   // Helps to prevent CSRF attacks
+}
+
 const generateAccessAndRefreshToken = async (user) => {
     try {
         const accessToken = await user.generateAccessToken();
@@ -170,8 +176,8 @@ const logoutUser = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .clearCookie("refreshToken", options)
-        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", clearOptions)
+        .clearCookie("accessToken", clearOptions)
         .json(new apiResponse(200, {}, "User logged out"))
 
 });

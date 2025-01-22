@@ -35,18 +35,20 @@ const playlistSchema = new Schema(
 
 // Create a default playlist
 mongoose.connection.once("open", async () => {
-    const user = await mongoose.model("User").findOne();
-    if (!user) return;
-    const watchLaterPlaylist = await mongoose.model("Playlist").findOne({ name: "Watch Later" });
-    if (!watchLaterPlaylist) {
-        await mongoose.model("Playlist").create({
-            name: "Watch Later",
-            description: "Videos that you want to watch later",
-            videos: [],
-            owner: user._id,
-            isUpdated: false,
-            isPublic: false
-        });
+    const users = await mongoose.model("User").find();
+    if (!users) return;
+    for (const user of users) {
+        const watchLaterPlaylist = await mongoose.model("Playlist").findOne({ name: "Watch Later" });
+        if (!watchLaterPlaylist) {
+            await mongoose.model("Playlist").create({
+                name: "Watch Later",
+                description: "Videos that you want to watch later",
+                videos: [],
+                owner: user._id,
+                isUpdated: false,
+                isPublic: false
+            });
+        }
     }
 });
 
