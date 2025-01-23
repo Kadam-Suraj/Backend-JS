@@ -191,18 +191,12 @@ const getUserAllPlaylists = asyncHandler(async (req, res) => {
         {
             $match: {
                 owner: new mongoose.Types.ObjectId(userId),
+                name: { $ne: "Watch Later" }
             },
         },
         {
             $addFields: {
                 totalVideos: { $size: "$videos" },
-                sortOrder: {
-                    $cond: {
-                        if: { $eq: ["$name", "Watch Later"] },
-                        then: 0, // Watch Later gets the highest priority
-                        else: 1  // Other playlists
-                    }
-                }
             }
         },
         {

@@ -1,10 +1,8 @@
 import mongoose, { isValidObjectId } from "mongoose"
-import { User } from "../models/user.model.js"
 import { Subscription } from "../models/subscription.model.js"
 import { apiError } from "../utils/apiError.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
-import { channel } from "diagnostics_channel"
 
 
 const toggleSubscription = asyncHandler(async (req, res) => {
@@ -72,21 +70,16 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 
 // controller to return subscriber list of a channel
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
-    const { subscriberId } = req.params;
     const userId = req.user?._id;
 
     if (!userId) {
         throw new apiError(401, "Unauthorized request");
     }
 
-    if (!isValidObjectId(subscriberId)) {
-        throw new apiError(400, "Invalid channel ID");
-    }
-
     const subscribers = await Subscription.aggregate([
         {
             $match: {
-                channel: new mongoose.Types.ObjectId(subscriberId)
+                channel: new mongoose.Types.ObjectId(userId)
             }
         },
         {
@@ -97,9 +90,29 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
                 as: "subscriber",
                 pipeline: [
                     {
+                        $lookup: {
+                            from: "subscriptions",
+                            localField: "_id",
+                            foreignField: "channel",
+                            as: "totalSubscribers"
+                        }
+                    },
+                    {
+                        $addFields: {
+                            totalSubscribers: { $size: "$totalSubscribers" },
+                            isSubscribed: {
+                                $in: [new mongoose.Types.ObjectId(userId), "$totalSubscribers.subscriber"]
+                            }
+                        }
+                    },
+                    {
                         $project: {
+                            username: 1,
+                            avatar: 1,
                             fullName: 1,
-                            avatar: 1
+                            description: 1,
+                            totalSubscribers: 1,
+                            isSubscribed: 1
                         }
                     }
                 ]
