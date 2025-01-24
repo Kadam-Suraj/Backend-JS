@@ -3,6 +3,7 @@ import {
     addToWatchLater,
     addVideoToPlaylist,
     checkVideoInPlaylist,
+    clearPlaylist,
     createPlaylist,
     deletePlaylist,
     getPlaylistById,
@@ -25,6 +26,8 @@ router
     .get(getPlaylistById)
     .patch(updatePlaylist)
     .delete(deletePlaylist);
+
+router.route("/c/:playlistId").post(clearPlaylist);
 
 router.route("/check/:videoId/:playlistId").get(checkVideoInPlaylist);
 

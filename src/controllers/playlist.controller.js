@@ -71,19 +71,13 @@ const getUserCreatedPlaylists = asyncHandler(async (req, res) => {
         {
             $match: {
                 owner: new mongoose.Types.ObjectId(userId),
-                name: { $ne: "Watch Later" }
+                name: { $nin: ["Watch Later", "Liked videos"] },
+                isPublic: true
             },
         },
         {
             $addFields: {
                 totalVideos: { $size: "$videos" },
-                sortOrder: {
-                    $cond: {
-                        if: { $eq: ["$name", "Watch Later"] },
-                        then: 0, // Watch Later gets the highest priority
-                        else: 1  // Other playlists
-                    }
-                }
             }
         },
         {
@@ -94,14 +88,16 @@ const getUserCreatedPlaylists = asyncHandler(async (req, res) => {
                 as: "video",
                 pipeline: [
                     {
-                        $limit: 1
-                    },
-                    {
                         $project: {
                             thumbnail: 1,
                         }
                     }
                 ]
+            }
+        },
+        {
+            $addFields: {
+                video: { $last: "$video" } // get only last video
             }
         },
         {
@@ -334,6 +330,11 @@ const getPlaylistById = asyncHandler(async (req, res) => {
             }
         },
         {
+            $addFields: {
+                videos: { $reverseArray: "$videos" } // Reverse the video array
+            }
+        },
+        {
             $lookup: {
                 from: "users",
                 localField: "owner",
@@ -519,49 +520,63 @@ const updatePlaylist = asyncHandler(async (req, res) => {
 
 const addToWatchLater = asyncHandler(async (req, res) => {
     // TODO: add video to watch later
-    const user = req.user;
+    const userId = req.user._id;
     const { videoId } = req.params;
 
     if (!isValidObjectId(videoId)) {
         throw new apiError(400, "Invalid video ID");
     }
 
-    if (!user) {
+    if (!userId) {
         throw new apiError(401, "Unauthorized request");
     }
 
-    const playlist = await Playlist.findOneAndUpdate(
+    const playlist = await Playlist.findOne(
         {
-            name: "Watch Later",
-            owner: user._id,
-            isUpdated: true
-        },
-        {
-            $cond: {
-                if: { $in: [videoId, "$videos"] },
-                then: { $pull: { videos: videoId } },
-                else: { $addToSet: { videos: videoId } }
-            }
-        },
-        {
-            new: true,
-            upsert: true
+            owner: new mongoose.Types.ObjectId(userId),
+            name: "Watch Later"
         }
-    );
+    )
 
-    if (!playlist) {
+    let updatedPlaylist;
+    let flag;
+    if (playlist) {
+        let update;
+
+        if (playlist.videos.includes(videoId)) {
+            update = { $pull: { videos: videoId } };
+            flag = false;
+        } else {
+            update = { $addToSet: { videos: videoId } };
+            flag = true;
+        }
+
+        updatedPlaylist = await Playlist.findOneAndUpdate(
+            {
+                name: "Watch Later",
+                owner: new mongoose.Types.ObjectId(userId),
+            },
+            update,
+            {
+                new: true
+            }
+        );
+    }
+
+    if (!updatedPlaylist) {
         throw new apiError(500, "Failed to add video to watch later");
     }
+    console.log(updatedPlaylist)
 
     res
         .status(200)
         .json(
             new apiResponse(
                 200,
-                playlist,
-                "Video updated in watch later successfully"
+                updatedPlaylist,
+                flag ? "Added to watch later" : "Removed from watch later"
             )
-        )
+        );
 })
 
 const checkVideoInPlaylist = asyncHandler(async (req, res) => {
@@ -652,6 +667,100 @@ const togglePlaylistVisibility = asyncHandler(async (req, res) => {
                 "Playlist visibility updated successfully"
             )
         );
+});
+
+const updateLikedVideos = asyncHandler(async (req, res) => {
+    //TODO: toggle like on video
+    const { videoId } = req.params
+
+    const userId = req.user?._id;
+
+    if (!userId) {
+        throw new apiError(400, "Authorization failed");
+    }
+
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
+    }
+
+    const likedVideos = await Playlist.findOne(
+        {
+            name: "Liked videos",
+            owner: new mongoose.Types.ObjectId(userId)
+        }
+    );
+
+    let updatedLike;
+    let flag;
+    if (likedVideos) {
+        let update;
+
+        if (likedVideos.videos.includes(videoId)) {
+            update = { $pull: { videos: videoId } };
+            flag = false;
+        } else {
+            update = { $addToSet: { videos: videoId } };
+            flag = true;
+        }
+
+        updatedLike = await Playlist.findOneAndUpdate(
+            {
+                name: "Liked videos",
+                owner: new mongoose.Types.ObjectId(userId)
+            },
+            update,
+            {
+                new: true
+            }
+        );
+    }
+
+    if (!updatedLike) {
+        throw new apiError(400, "Error while submitting like");
+    }
+
+    res
+        .status(200)
+        .json(
+            new apiResponse(
+                200,
+                updatedLike,
+                flag ? "Video liked" : "Video like removed"
+            )
+        );
+});
+
+const clearPlaylist = asyncHandler(async (req, res) => {
+    const { playlistId } = req.params;
+    const userId = req.user;
+
+    if (!isValidObjectId(playlistId)) {
+        throw new apiError(400, "Invalid playlist ID");
+    }
+
+    if (!isValidObjectId(userId)) {
+        throw new apiError(401, "Unauthorized request");
+    }
+
+    const clearedList = await Playlist.findByIdAndUpdate(
+        playlistId,
+        {
+            $unset: { videos: "" }
+        },
+        {
+            new: true
+        }
+    );
+
+    if (!clearedList) {
+        throw new apiError(404, "Playlist not found");
+    }
+
+    res.status(200)
+        .json(
+            new apiResponse(200, clearedList, "Playlist cleared successfully")
+        );
+
 })
 
 export {
@@ -665,5 +774,7 @@ export {
     updatePlaylist,
     addToWatchLater,
     checkVideoInPlaylist,
-    togglePlaylistVisibility
+    togglePlaylistVisibility,
+    updateLikedVideos,
+    clearPlaylist
 }

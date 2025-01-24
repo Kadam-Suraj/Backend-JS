@@ -10,14 +10,11 @@ const options = {
     httpOnly: true,       // Makes it accessible only to the server
     secure: true,         // Works only with HTTPS
     sameSite: 'Strict',   // Helps to prevent CSRF attacks
-    maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
+    maxAge: (24 * 60 * 60 * 1000) // 1 day in ms
 }
 
-const clearOptions = {
-    httpOnly: true,       // Makes it accessible only to the server
-    secure: true,         // Works only with HTTPS
-    sameSite: 'Strict',   // Helps to prevent CSRF attacks
-}
+const refreshTokenExpiry = (240 * 60 * 60 * 1000) // 10 days in ms
+const refreshTokenOptions = { ...options, maxAge: refreshTokenExpiry };
 
 const generateAccessAndRefreshToken = async (user) => {
     try {
@@ -153,8 +150,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .cookie("refreshToken", refreshToken, options)
         .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, refreshTokenOptions)
         .json(
             new apiResponse(201, {
                 user: loggedInUser, accessToken, refreshToken
@@ -174,10 +171,12 @@ const logoutUser = asyncHandler(async (req, res) => {
         }
     });
 
+    const tokenExpiryOptions = { ...options, maxAge: 0 }
+
     return res
         .status(200)
-        .clearCookie("refreshToken", clearOptions)
-        .clearCookie("accessToken", clearOptions)
+        .clearCookie("refreshToken", tokenExpiryOptions)
+        .clearCookie("accessToken", tokenExpiryOptions)
         .json(new apiResponse(200, {}, "User logged out"))
 
 });
@@ -212,7 +211,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
         res.status(200)
             .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", refreshToken, options)
+            .cookie("refreshToken", refreshToken, refreshTokenOptions)
             .json(
                 new apiResponse(200, { refreshToken, accessToken }, "Token refreshed")
             )
@@ -499,6 +498,99 @@ const checkId = asyncHandler(async (req, res) => {
     res.status(200).json(new apiResponse(200, {}, "User Valid"));
 })
 
+const getAllCollections = asyncHandler(async (req, res) => {
+    const userId = req.user;
+
+    if (!isValidObjectId(userId)) {
+        throw new apiError(401, "Unauthorized request");
+    }
+
+    const collections = await User.aggregate(
+        [
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(userId)
+                }
+            },
+            { // Stage for playlists videos
+                $lookup: {
+                    from: "playlists",
+                    localField: "_id",
+                    foreignField: "owner",
+                    as: "collections",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "videos",
+                                localField: "videos",
+                                foreignField: "_id",
+                                as: "video",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            thumbnail: 1
+                                        }
+                                    },
+                                ]
+                            }
+                        },
+                        {
+                            $match: {
+                                video: { $ne: [] } // Ensure the video array is not empty
+                            }
+                        },
+                        {
+                            $addFields: {
+                                "totalVideos": { $size: "$video" }, // Add the total count of videos in likedVideos
+                            }
+                        },
+                        {
+                            $unwind: "$video"
+                        },
+                        {
+                            $group: {
+                                _id: "$_id", // Group by playlist `_id`
+                                name: { $first: "$name" },
+                                description: { $first: "$description" },
+                                totalVideos: { $first: "$totalVideos" },
+                                owner: { $first: "$owner" },
+                                isPublic: { $first: "$isPublic" },
+                                video: { $last: "$video" } // Get the most recent video
+                            }
+                        },
+                        {
+                            $project: {
+                                name: 1,
+                                description: 1,
+                                owner: 1,
+                                video: 1,
+                                totalVideos: 1,
+                                isPublic: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $project: {
+                    collections: 1,
+                    username: 1,
+                    avatar: 1,
+                    fullName: 1,
+                }
+            }
+        ]
+    );
+
+    if (!collections[0]) {
+        throw new apiError(404, "Collections not found");
+    }
+
+    res.status(200).json(
+        new apiResponse(200, collections[0], "Collections fetched successfully")
+    );
+});
+
 export {
     registerUser,
     loginUser,
@@ -511,5 +603,6 @@ export {
     updateCoverImage,
     getUserProfile,
     getWatchHistory,
-    checkId
+    checkId,
+    getAllCollections
 };

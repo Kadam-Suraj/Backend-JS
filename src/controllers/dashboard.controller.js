@@ -76,13 +76,15 @@ const getChannelVideos = asyncHandler(async (req, res) => {
         throw new apiError(400, "Invalid channel ID");
     }
 
-    const videos = await Video.find(
+    const data = await Video.find(
         { owner: channelId }
     );
 
-    if (!videos[0]) {
+    if (!data[0]) {
         throw new apiError(500, "Failed to get videos or no videos found");
     }
+
+    const videos = data.reverse();
 
     res
         .status(200)

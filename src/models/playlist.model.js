@@ -49,6 +49,18 @@ mongoose.connection.once("open", async () => {
                 isPublic: false
             });
         }
+
+        const likedVideos = await mongoose.model("Playlist").findOne({ name: "Liked videos" });
+        if (!likedVideos) {
+            await mongoose.model("Playlist").create({
+                name: "Liked videos",
+                description: "Videos that you have liked",
+                videos: [],
+                owner: user._id,
+                isUpdated: false,
+                isPublic: false
+            });
+        }
     }
 });
 
