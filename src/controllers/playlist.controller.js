@@ -566,8 +566,7 @@ const addToWatchLater = asyncHandler(async (req, res) => {
     if (!updatedPlaylist) {
         throw new apiError(500, "Failed to add video to watch later");
     }
-    console.log(updatedPlaylist)
-
+    
     res
         .status(200)
         .json(
