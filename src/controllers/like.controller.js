@@ -3,6 +3,7 @@ import { Like } from "../models/like.model.js"
 import { apiError } from "../utils/apiError.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
+import { Playlist } from "../models/playlist.model.js"
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
     //TODO: toggle like on video
@@ -18,36 +19,64 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
         throw new apiError(400, "Invalid video ID");
     }
 
-    const isLiked = await Like.aggregate([
+    const likeExists = await Like.findOne(
         {
-            $match: {
-                video: new mongoose.Types.ObjectId(videoId),
-                likedBy: userId
-            }
-        },
-        {
-            $addFields: {
-                isLiked: { $eq: ["$likedBy", userId] }
-            }
+            likedBy: new mongoose.Types.ObjectId(userId),
+            video: new mongoose.Types.ObjectId(videoId)
         }
-    ]);
+    )
 
-    let like;
+    let flag;
+    let data;
 
-    if (isLiked) {
-        like = await Like.findByIdAndDelete(isLiked[0]?._id);
-    }
+    if (likeExists) {
 
-    if (!isLiked[0]) {
-        like = await Like.create(
+        data = await Like.deleteOne(
             {
-                video: videoId,
-                likedBy: userId
+                likedBy: new mongoose.Types.ObjectId(userId),
+                video: new mongoose.Types.ObjectId(videoId)
+            }
+        );
+
+        await Playlist.updateOne(
+            {
+                owner: new mongoose.Types.ObjectId(userId),
+                name: "Liked videos"
             },
-        )
+            {
+                $pull: {
+                    videos: videoId
+                }
+            }
+        );
+
+        flag = false;
+
+    } else {
+
+        data = await Like.create({
+            likedBy: userId,
+            video: videoId
+        });
+
+        await Playlist.updateOne(
+            {
+                owner: new mongoose.Types.ObjectId(userId),
+                name: "Liked videos"
+            },
+            {
+                $addToSet: {
+                    videos: videoId
+                }
+            }
+        );
+
+        flag = true;
+
     }
 
-    if (!like) {
+
+    if (!data) {
         throw new apiError(400, "Error while submitting like");
     }
 
@@ -56,8 +85,8 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
         .json(
             new apiResponse(
                 200,
-                like,
-                !isLiked[0] ? "Like submitted successfully" : "Like removed successfully"
+                {},
+                flag ? "Video liked" : "Video disliked"
             )
         );
 })

@@ -1,5 +1,6 @@
 import mongoose, { isValidObjectId } from "mongoose"
 import { Playlist } from "../models/playlist.model.js"
+import { Like } from "../models/like.model.js"
 import { apiError } from "../utils/apiError.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
@@ -566,7 +567,7 @@ const addToWatchLater = asyncHandler(async (req, res) => {
     if (!updatedPlaylist) {
         throw new apiError(500, "Failed to add video to watch later");
     }
-    
+
     res
         .status(200)
         .json(
@@ -668,68 +669,12 @@ const togglePlaylistVisibility = asyncHandler(async (req, res) => {
         );
 });
 
-const updateLikedVideos = asyncHandler(async (req, res) => {
-    //TODO: toggle like on video
-    const { videoId } = req.params
-
-    const userId = req.user?._id;
-
-    if (!userId) {
-        throw new apiError(400, "Authorization failed");
-    }
-
-    if (!isValidObjectId(videoId)) {
-        throw new apiError(400, "Invalid video ID");
-    }
-
-    const likedVideos = await Playlist.findOne(
-        {
-            name: "Liked videos",
-            owner: new mongoose.Types.ObjectId(userId)
-        }
-    );
-
-    let updatedLike;
-    let flag;
-    if (likedVideos) {
-        let update;
-
-        if (likedVideos.videos.includes(videoId)) {
-            update = { $pull: { videos: videoId } };
-            flag = false;
-        } else {
-            update = { $addToSet: { videos: videoId } };
-            flag = true;
-        }
-
-        updatedLike = await Playlist.findOneAndUpdate(
-            {
-                name: "Liked videos",
-                owner: new mongoose.Types.ObjectId(userId)
-            },
-            update,
-            {
-                new: true
-            }
-        );
-    }
-
-    if (!updatedLike) {
-        throw new apiError(400, "Error while submitting like");
-    }
-
-    res
-        .status(200)
-        .json(
-            new apiResponse(
-                200,
-                updatedLike,
-                flag ? "Video liked" : "Video like removed"
-            )
-        );
-});
-
 const clearPlaylist = asyncHandler(async (req, res) => {
+
+    // check if playlist with data exists
+    // clear video likes documents for liked videos
+    // clear videos from playlist
+
     const { playlistId } = req.params;
     const userId = req.user;
 
@@ -741,23 +686,32 @@ const clearPlaylist = asyncHandler(async (req, res) => {
         throw new apiError(401, "Unauthorized request");
     }
 
-    const clearedList = await Playlist.findByIdAndUpdate(
-        playlistId,
-        {
-            $unset: { videos: "" }
-        },
-        {
-            new: true
-        }
-    );
+    const prevPlaylist = await Playlist.findById(playlistId);
 
-    if (!clearedList) {
+    if (prevPlaylist) {
+        await Like.deleteMany(
+            {
+                likedBy: new mongoose.Types.ObjectId(userId), // match likedBy field
+                video: { $exists: true } // ensure videos field exists
+            }
+        );
+
+        await Playlist.findByIdAndUpdate(
+            playlistId,
+            {
+                $set: { videos: [] }
+            }
+        )
+    }
+
+
+    if (!prevPlaylist) {
         throw new apiError(404, "Playlist not found");
     }
 
     res.status(200)
         .json(
-            new apiResponse(200, clearedList, "Playlist cleared successfully")
+            new apiResponse(200, {}, "Playlist cleared successfully")
         );
 
 })
@@ -774,6 +728,5 @@ export {
     addToWatchLater,
     checkVideoInPlaylist,
     togglePlaylistVisibility,
-    updateLikedVideos,
     clearPlaylist
 }
